@@ -1,2 +1,2 @@
 # EMG_processing
-pushの確認
+1st push 9/3

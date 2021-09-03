@@ -27,7 +27,7 @@ lda_finger=LinearDiscriminantAnalysis(n_components=2)
 count=0
 ovr_l = 32
 win_l = 64
-
+motion_predict=3 #初回はnomotion
 ADDR = '127.0.0.1'
 PORT_TO = 50007 #送信ポート
 M_SIZE = 1024
@@ -79,9 +79,11 @@ class EmgCollector(myo.DeviceListener):
       tmp=np.array([x[1] for x in tmp]).T
       test_features=[feature_calc(tmp, win_l)]
       df = pd.DataFrame(test_features)
-      print(lda_finger.predict(df.values))
+      global motion_predict
+      motion_predict=lda_finger.predict(df.values)
+      #print(motion_predict)
       a= lda_finger.transform(df.values)
-      print(a)
+      #print(a)
       global features_2d
       features_2d.append(a[0])
 
@@ -105,11 +107,9 @@ class EmgCollector(myo.DeviceListener):
 
 
 class Train(object):
-    def __init__(self,listener,axdata):
+    def __init__(self,listener):
         self.n = listener.n
         self.listener = listener
-        self.ax=axdata
-
     # def get_emg(self):
     #     emg_data=self.listener.get_emg_data()
     #     emg_data=np.array([x[1] for x in emg_data]).T
@@ -151,10 +151,13 @@ class Train(object):
 
     def Test_emg(self):
         global count,lda_finger,ax,features_2d,scat
+        snd=socket(AF_INET,SOCK_DGRAM)
         count = 0
         self.listener.start_test()
         while True:
             update_plot(scat)
+            msg=str(motion_predict)
+            snd.sendto(msg.encode(),(ADDR,PORT_TO))
             if keyboard.is_pressed("space"):  # スペースでテスト終了
                 self.listener.end()
                 break
@@ -164,7 +167,7 @@ def feature_calc(emg,win_l):
     FEATURES = []
     for i in range(8):
         tmp = emg[i]
-        FEATURES.append(np.mean(np.abs(tmp)))  # MAV]
+        FEATURES.append(np.mean(np.abs(tmp)))  # MAV
         FEATURES.append(np.var(tmp))  # VAR
         zero = 0
         for j in range(0, win_l - 1):
@@ -190,19 +193,17 @@ def main():
   myo.init()
   hub = myo.Hub()
   listener = EmgCollector(512)
-  label_ = ["fist","grab", "nomotion", "spread", "lateral", "pinch"]
+  label_ = ["fist","grab", "nomotion", "spread", "lateral", "pinch","current"]
   #label_ = ["flexion", "extension", "pronation", "supination"]
-
+  features_label=[]
   with hub.run_in_background(listener.on_event):
 
     while True:
-
         # tmp = input("record EMG? y/n: ")
         # if tmp == "y":
         #     Train(listener).main()
         # print("LDA training start")
-        # features_size=[]
-        # pre_tmp=[]
+        # global emg_label
         # for i in range(int(len(emg_train[0]) / ovr_l - 1)):
         #     tmp = i * ovr_l
         #     emg_features.append(feature_calc(emg_train[:,tmp:tmp+win_l],win_l))
@@ -211,19 +212,19 @@ def main():
         #
         # tmp=np.array(features_label)
         # np.savetxt("features_label.txt", tmp, fmt='%s', delimiter=',')
+        # df.to_csv("EMG_features.csv")   #データ一回作っておこう8/22
 
-        df=pd.read_csv('EMG_features.csv',header=0, index_col=0)
-        features_label=np.loadtxt("features_label.txt")
-        #df.to_csv("EMG_features.csv")   #データ一回作っておこう8/22
         #lda_finger = LinearDiscriminantAnalysis(n_components=2)
-        print(len(df.values[1]))
+        global lda_finger
+        df = pd.read_csv('EMG_features.csv', header=0, index_col=0)
+        features_label = np.loadtxt("features_label.txt")
         finger_motion = lda_finger.fit(df.values, features_label).transform(df.values)
 
 
         fig = plt.figure(figsize=(18, 12))
         global ax,scat
         ax = plt.subplot(121)
-        label_ = ["fist", "grab", "nomotion", "spread", "lateral", "pinch"]
+        label_ = ["fist", "grab", "nomotion", "spread", "lateral", "pinch","current"]
         for k in range(6):
             tmp = []
             tmp.append([finger_motion[j][0] for j in range(len(finger_motion)) if features_label[j] == (k + 1)])
@@ -231,14 +232,14 @@ def main():
             tmp = np.array(tmp)
             scat=ax.scatter(tmp[0], tmp[1], label=label_[k], cmap='viridis', edgecolor='blacK')
 
-        scat = ax.scatter(0, 0, label=label_[k], c="crimson",s=250,marker="X")
+        scat = ax.scatter(0, 0, label=label_[k], c="crimson",s=250,marker="X") #空撃ちすることでリアルタイム分類時のset_datasに備える
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0, fontsize=12)
         plt.title('LDA', fontsize=20)
         #plt.ion()
         plt.pause(0.05)
         tmp = input("start Test? y/n: ")
         if tmp == "y":
-            Train(listener,ax).Test_emg()
+            Train(listener).Test_emg()
 
 if __name__ == '__main__':
   main()
