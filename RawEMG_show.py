@@ -37,7 +37,7 @@ scat=0
 
 def update_plot(scat):
     tmp = np.array([x for x in list(features_2d)])
-    print(tmp)
+    #print(tmp)
     scat.set_offsets(tmp)
     plt.pause(0.008)
 
@@ -151,12 +151,13 @@ class Train(object):
 
     def Test_emg(self):
         global count,lda_finger,ax,features_2d,scat
+        classname = ["fist", "grab", "nomotion", "spread", "lateral", "pinch", "current"]
         snd=socket(AF_INET,SOCK_DGRAM)
         count = 0
         self.listener.start_test()
         while True:
             update_plot(scat)
-            msg=str(motion_predict)
+            msg="motion : "+ str(classname[int(motion_predict)-1])
             snd.sendto(msg.encode(),(ADDR,PORT_TO))
             if keyboard.is_pressed("space"):  # スペースでテスト終了
                 self.listener.end()
