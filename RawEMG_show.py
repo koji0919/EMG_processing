@@ -194,38 +194,38 @@ def main():
   myo.init()
   hub = myo.Hub()
   listener = EmgCollector(512)
-  label_ = ["fist","grab", "nomotion", "spread", "lateral", "pinch","current"]
   #label_ = ["flexion", "extension", "pronation", "supination"]
   features_label=[]
   with hub.run_in_background(listener.on_event):
 
     while True:
-        # tmp = input("record EMG? y/n: ")
-        # if tmp == "y":
-        #     Train(listener).main()
-        # print("LDA training start")
-        # global emg_label
-        # for i in range(int(len(emg_train[0]) / ovr_l - 1)):
-        #     tmp = i * ovr_l
-        #     emg_features.append(feature_calc(emg_train[:,tmp:tmp+win_l],win_l))
-        #     features_label.append(emg_label[tmp])
-        # df = pd.DataFrame(emg_features)
-        #
-        # tmp=np.array(features_label)
-        # np.savetxt("features_label.txt", tmp, fmt='%s', delimiter=',')
-        # df.to_csv("EMG_features.csv")   #データ一回作っておこう8/22
+        tmp = input("record EMG? y/n: ")
+        if tmp == "y":
+            Train(listener).main()
+        print("LDA training start")
+        global emg_label
+        for i in range(int(len(emg_train[0]) / ovr_l - 1)):
+            tmp = i * ovr_l
+            emg_features.append(feature_calc(emg_train[:,tmp:tmp+win_l],win_l))
+            features_label.append(emg_label[tmp])
+        df = pd.DataFrame(emg_features)
+
+        tmp=np.array(features_label)
+        np.savetxt("features_label.txt", tmp, fmt='%s', delimiter=',')
+        df.to_csv("EMG_features.csv")   #データ一回作っておこう8/22
 
         #lda_finger = LinearDiscriminantAnalysis(n_components=2)
+
         global lda_finger
-        df = pd.read_csv('EMG_features.csv', header=0, index_col=0)
-        features_label = np.loadtxt("features_label.txt")
+        # df = pd.read_csv('EMG_features.csv', header=0, index_col=0)
+        # features_label = np.loadtxt("features_label.txt")
         finger_motion = lda_finger.fit(df.values, features_label).transform(df.values)
 
 
         fig = plt.figure(figsize=(18, 12))
         global ax,scat
         ax = plt.subplot(121)
-        label_ = ["fist", "grab", "nomotion", "spread", "lateral", "pinch","current"]
+        label_ = ["fist", "grab", "nomotion", "spread", "lateral", "pinch"]
         for k in range(6):
             tmp = []
             tmp.append([finger_motion[j][0] for j in range(len(finger_motion)) if features_label[j] == (k + 1)])
@@ -233,7 +233,7 @@ def main():
             tmp = np.array(tmp)
             scat=ax.scatter(tmp[0], tmp[1], label=label_[k], cmap='viridis', edgecolor='blacK')
 
-        scat = ax.scatter(0, 0, label=label_[k], c="crimson",s=250,marker="X") #空撃ちすることでリアルタイム分類時のset_datasに備える
+        scat = ax.scatter(0, 0, label="current", c="crimson",s=250,marker="X") #空撃ちすることでリアルタイム分類時のset_datasに備える
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0, fontsize=12)
         plt.title('LDA', fontsize=20)
         #plt.ion()
