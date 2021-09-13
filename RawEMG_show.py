@@ -157,7 +157,7 @@ class Train(object):
         self.listener.start_test()
         while True:
             update_plot(scat)
-            msg="motion : "+ str(classname[int(motion_predict)-1])
+            msg=str(motion_predict)
             snd.sendto(msg.encode(),(ADDR,PORT_TO))
             if keyboard.is_pressed("space"):  # スペースでテスト終了
                 self.listener.end()
@@ -198,27 +198,27 @@ def main():
   features_label=[]
   with hub.run_in_background(listener.on_event):
 
-    while True:
-        tmp = input("record EMG? y/n: ")
-        if tmp == "y":
-            Train(listener).main()
-        print("LDA training start")
-        global emg_label
-        for i in range(int(len(emg_train[0]) / ovr_l - 1)):
-            tmp = i * ovr_l
-            emg_features.append(feature_calc(emg_train[:,tmp:tmp+win_l],win_l))
-            features_label.append(emg_label[tmp])
-        df = pd.DataFrame(emg_features)
-
-        tmp=np.array(features_label)
-        np.savetxt("features_label.txt", tmp, fmt='%s', delimiter=',')
-        df.to_csv("EMG_features.csv")   #データ一回作っておこう8/22
+    # while True:
+    #     tmp = input("record EMG? y/n: ")
+    #     if tmp == "y":
+    #         Train(listener).main()
+    #     print("LDA training start")
+    #     global emg_label
+    #     for i in range(int(len(emg_train[0]) / ovr_l - 1)):
+    #         tmp = i * ovr_l
+    #         emg_features.append(feature_calc(emg_train[:,tmp:tmp+win_l],win_l))
+    #         features_label.append(emg_label[tmp])
+    #     df = pd.DataFrame(emg_features)
+    #
+    #     tmp=np.array(features_label)
+    #     np.savetxt("features_label.txt", tmp, fmt='%s', delimiter=',')
+    #     df.to_csv("EMG_features.csv")   #データ一回作っておこう8/22
 
         #lda_finger = LinearDiscriminantAnalysis(n_components=2)
 
         global lda_finger
-        # df = pd.read_csv('EMG_features.csv', header=0, index_col=0)
-        # features_label = np.loadtxt("features_label.txt")
+        df = pd.read_csv('EMG_features.csv', header=0, index_col=0)
+        features_label = np.loadtxt("features_label.txt")
         finger_motion = lda_finger.fit(df.values, features_label).transform(df.values)
 
 
