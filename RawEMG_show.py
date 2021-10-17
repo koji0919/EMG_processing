@@ -12,12 +12,20 @@ import tkinter
 
 emg_train=np.array([[] for i in range(8)])
 emg_test=np.array([[] for i in range(8)])
-features_2d = deque(maxlen=6)
-features_2d.append([0,0])
-features_2d.append([0,0])
-features_2d.append([0,0])
-features_2d.append([0,0])
-features_2d.append([0,0])
+
+def queue_init(dim,q_length):
+    tmp=deque(maxlen=q_length)
+    a=0
+    if dim==2:
+        a=[0,0]
+    for i in range(q_length):
+        tmp.append(a)
+    return tmp
+
+finger_2d = queue_init(2,6)
+wrist_2d = queue_init(2,6)
+finger_predict = queue_init(1,6)
+wrist_predict = queue_init(1,6)
 
 print(emg_train.shape )
 finger_label=[]
@@ -28,19 +36,42 @@ lda_wrist=LinearDiscriminantAnalysis(n_components=2)
 count=0
 ovr_l = 32
 win_l = 64
-finger_predict=1 #初回はnomotion
-wrist_predict=1
+class_n = 3  # 指
+class_m = 4  # 手首
+
 ADDR = '127.0.0.1'
 PORT_TO = 50007 #送信ポート
 M_SIZE = 1024
 
-ax=0    #pltのリアルタイムプロット用のグローバル変数
-scat=0
+ax1=0    #pltのリアルタイムプロット用のグローバル変数
+ax2=0
+scat_finger=0
+scat_wrist=0
 
-def update_plot(scat):
-    tmp = np.array([x for x in list(features_2d)])
-    scat.set_offsets(tmp)
+def queue_init(dim,q_length):
+    tmp=deque(maxlen=q_length)
+    a=0
+    if dim==2:
+        a=[0,0]
+    for i in range(q_length):
+        tmp.append(a)
+    return tmp
+
+def hist_data(inputs,n):
+    results=[]
+    inputlist=list(inputs)
+    for i in range(n):
+        results.append(inputlist.count((i+1)))
+    print(results)
+    return results
+
+def update_plot(scat1,scat2):
+    tmp = np.array([x for x in list(finger_2d)])
+    tmp2 = np.array([x for x in list(wrist_2d)])
+    scat1.set_offsets(tmp)
+    scat2.set_offsets(tmp2)
     plt.pause(0.008)
+
 
 class EmgCollector(myo.DeviceListener):
   """
@@ -75,19 +106,21 @@ class EmgCollector(myo.DeviceListener):
       self.testflg=True
 
   def predict(self):
-      global scat, ax
+      global scat_finger, ax1
       tmp=self.get_emg_queue()
       tmp=np.array([x[1] for x in tmp]).T
       test_features=[feature_calc(tmp, win_l)]
       df = pd.DataFrame(test_features)
       global finger_predict,wrist_predict
-      finger_predict=lda_finger.predict(df.values)
-      wrist_predict=lda_wrist.predict(df.values)
+      finger_predict.append(lda_finger.predict(df.values))
+      wrist_predict.append(lda_wrist.predict(df.values))
       #print(motion_predict)
       a= lda_finger.transform(df.values)
+      b= lda_wrist.transform(df.values)
       #print(a)
-      global features_2d
-      features_2d.append(a[0])
+      global finger_2d,wrist_2d
+      finger_2d.append(a[0])
+      wrist_2d.append(b[0])
 
   def end(self):
       self.idle=False
@@ -155,18 +188,38 @@ class Train(object):
             flag_pressed=False
             plt.pause(1.0 / 30)
 
-    def Test_emg(self):
-        global ax,features_2d,scat
+    def Test_emg(self,feedback):
+        global ax1,finger_2d,scat_finger,ax2,wrist_2d,scat_wrist,finger_predict,wrist_predict
         snd=socket(AF_INET,SOCK_DGRAM)
-
         self.listener.start_test()
-        while True:
-            update_plot(scat)
-            msg=str(finger_predict)+str(wrist_predict)
-            snd.sendto(msg.encode(),(ADDR,PORT_TO))
-            if keyboard.is_pressed("space"):  # スペースでテスト終了
-                self.listener.end()
-                break
+        if feedback==1:
+            while True:
+                update_plot(scat_finger,scat_wrist)
+                msg=str(finger_predict)+str(wrist_predict)
+                snd.sendto(msg.encode(),(ADDR,PORT_TO))
+                if keyboard.is_pressed("space"):  # スペースでテスト終了
+                    self.listener.end()
+                    break
+        if feedback==0:
+            fig = plt.figure(figsize=(18, 12))
+            ax1 = plt.subplot(121)
+            ax2 = plt.subplot(122)
+            motions=[]
+            hist_finger=ax1.hist(hist_data(finger_predict,class_n))
+            wrist_finger=ax2.hist(hist_data(wrist_predict,class_m))
+            while True:
+                ax1.cla()
+                ax2.cla()
+                ax1.set_title("finger motion")
+                ax2.set_title("wrist motion")
+                ax1.bar([1,2,3],hist_data(finger_predict, class_n))
+                print(finger_predict, class_n)
+                ax2.bar([1,2,3,4],hist_data(wrist_predict, class_m))
+                ax1.set_ylim(0,6)
+                ax1.set_xlim(0,class_n)
+                ax2.set_ylim(0,6)
+                ax2.set_xlim(0,class_m)
+                plt.pause(1.0 / 30)
 
 
 def feature_calc(emg,win_l):
@@ -193,58 +246,76 @@ scatter=0
 def main():
   # ovr_l=32
   # win_l=64
-  class_n=5
+
   myo.init()
   hub = myo.Hub()
   listener = EmgCollector(512)
-  #label_ = ["flexion", "pronation", "supination"]
+
   features_finger=[]
   features_wrist=[]
   with hub.run_in_background(listener.on_event):
 
-    while True:
-        tmp = input("record finger EMG? y/n: ")
-        if tmp == "y":
-            Train(listener).main()
-        print("LDA training start")
-        global finger_label
-        for i in range(int(len(emg_train[0]) / ovr_l - 1)):
-            tmp = i * ovr_l
-            emg_features.append(feature_calc(emg_train[:,tmp:tmp+win_l],win_l))
-            features_finger.append(finger_label[tmp])
-            features_wrist.append(wrist_label[tmp])
-        df = pd.DataFrame(emg_features)
-        tmp=np.array(features_finger)
-        np.savetxt("features_finger.txt", tmp, fmt='%s', delimiter=',')
-        tmp = np.array(features_wrist)
-        np.savetxt("features_wrist.txt", tmp, fmt='%s', delimiter=',')
-        df.to_csv("EMG_features.csv")   #データ一回作っておこう8/22
+    # while True:
+    #     tmp = input("record finger EMG? y/n: ")
+    #     if tmp == "y":
+    #         Train(listener).main()
+    #     print("LDA training start")
+    #     global finger_label
+    #     for i in range(int(len(emg_train[0]) / ovr_l - 1)):
+    #         tmp = i * ovr_l
+    #         emg_features.append(feature_calc(emg_train[:,tmp:tmp+win_l],win_l))
+    #         features_finger.append(finger_label[tmp])
+    #         features_wrist.append(wrist_label[tmp])
+    #     df = pd.DataFrame(emg_features)
+    #     tmp=np.array(features_finger)
+    #     np.savetxt("features_finger.txt", tmp, fmt='%s', delimiter=',')
+    #     tmp = np.array(features_wrist)
+    #     np.savetxt("features_wrist.txt", tmp, fmt='%s', delimiter=',')
+    #     df.to_csv("EMG_features.csv")   #データ一回作っておこう8/22
 
         #lda_finger = LinearDiscriminantAnalysis(n_components=2)
 
         global lda_finger,lda_wrist
-        # df = pd.read_csv('EMG_features.csv', header=0, index_col=0)
-        # features_finger = np.loadtxt("features_finger.txt")
+        df = pd.read_csv('EMG_features.csv', header=0, index_col=0)
+        features_finger = np.loadtxt("features_finger.txt")
+        features_wrist = np.loadtxt("features_wrist.txt")
         finger_motion = lda_finger.fit(df.values, features_finger).transform(df.values)
-        lda_wrist.fit(df.values, features_wrist)
+        wrist_motion = lda_wrist.fit(df.values, features_wrist).transform(df.values)
 
         fig = plt.figure(figsize=(18, 12))
-        global ax,scat
-        ax = plt.subplot(121)
-        label_ = ["nomotion","fist", "point", "pinch", "internal"]
-        for k in range(class_n):
+        global ax1,ax2,scat_finger,scat_wrist
+        ax1 = plt.subplot(121)
+        ax2 = plt.subplot(122)
+        label_ = ["nomotion","fist", "point"]
+        label__= ["nomotion","flexion", "pronation", "supination"]
+        for k in range(class_n):    #手描画
             tmp = []
             tmp.append([finger_motion[j][0] for j in range(len(finger_motion)) if features_finger[j] == (k + 1)])
             tmp.append([finger_motion[j][1] for j in range(len(finger_motion)) if features_finger[j] == (k + 1)])
             tmp = np.array(tmp)
-            scat=ax.scatter(tmp[0], tmp[1], label=label_[k], cmap='viridis', edgecolor='blacK')
-        scat = ax.scatter(0, 0, label="current", c="crimson",s=250,marker="X") #空撃ちすることでリアルタイム分類時のset_datasに備える
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0, fontsize=12)
-        plt.title('LDA', fontsize=20)
-        plt.pause(0.05)
-        tmp = input("start Test? y/n: ")
-        if tmp == "y":
-            Train(listener).Test_emg()
+            scat_finger=ax1.scatter(tmp[0], tmp[1], label=label_[k], cmap='viridis', edgecolor='blacK')
+        ax1.set_title("finger_pattern")
+        ax1.legend(labels=label_, fontsize=12)
+        scat_finger = ax1.scatter(0, 0, label="current", c="crimson", s=250, marker="X") #空撃ちすることでリアルタイム分類時のset_datasに備える
 
+        for k in range(class_m):
+            tmp=[]
+            tmp.append([wrist_motion[j][0] for j in range(len(wrist_motion)) if features_wrist[j] == (k + 1)])
+            tmp.append([wrist_motion[j][1] for j in range(len(wrist_motion)) if features_wrist[j] == (k + 1)])
+            tmp = np.array(tmp)
+            scat_wrist = ax2.scatter(tmp[0], tmp[1], label=label__[k], cmap='viridis', edgecolor='blacK')
+        ax2.legend(labels=label__, fontsize=12)
+        ax2.set_title("wrist_pattern")
+        scat_wrist = ax2.scatter(0, 0, label="current", c="crimson", s=250, marker="X")  # 空撃ちすることでリアルタイム分類時のset_datasに備える
+        #plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0, fontsize=12)
+        #plt.title('LDA', fontsize=20)
+
+        plt.pause(0.05)
+        tmp = input("start Train with FeedBuck? y/n: ")
+        if tmp == "y":
+            Train(listener).Test_emg(1)
+        if tmp =="n":
+            plt.gca().clear()  # 確認で表示したクラスター図の削除
+            Train(listener).Test_emg(0)
 if __name__ == '__main__':
   main()
