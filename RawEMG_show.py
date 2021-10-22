@@ -8,12 +8,12 @@ import keyboard
 import pandas as pd
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from socket import socket, AF_INET, SOCK_DGRAM
-import tkinter
+import tkinter as tk
 
 emg_train=np.array([[] for i in range(8)])
 emg_test=np.array([[] for i in range(8)])
 
-def queue_init(dim,q_length):
+def queue_init(dim,q_length):   #キューを作成する
     tmp=deque(maxlen=q_length)
     a=0
     if dim==2:
@@ -36,6 +36,7 @@ lda_wrist=LinearDiscriminantAnalysis(n_components=2)
 count=0
 ovr_l = 32
 win_l = 64
+do_record=True
 class_n = 3  # 指
 class_m = 4  # 手首
 
@@ -43,7 +44,7 @@ ADDR = '127.0.0.1'
 PORT_TO = 50007 #送信ポート
 M_SIZE = 1024
 
-ax1=0    #pltのリアルタイムプロット用のグローバル変数
+ax1=0    #pltのリアルタイムプロット用のグローバル変数(0は仮で代入)
 ax2=0
 scat_finger=0
 scat_wrist=0
@@ -243,42 +244,79 @@ def feature_calc(emg,win_l):
 
 scatter=0
 
+
 def main():
+#------------------------------------設定ウィンドウのUI
+    root = tk.Tk()
+    root.geometry('300x200')
+    root.title('初期数値')
+    lbl1 = tk.Label(text='時間窓長さ')
+    lbl1.place(x=20, y=70)
+    ovr = tk.Entry(width=20)
+    ovr.place(x=90, y=70)
+    ovr.insert(tk.END,"30")
+    button = tk.Button(text="go record")
+    button.place(x=50, y=110)
+    button2 = tk.Button(text="go test")
+    button2.place(x=150, y=110)
+    lbl2 = tk.Label(text='オーバーラップ')
+    lbl2.place(x=20, y=95)
+    win = tk.Entry(width=20)
+    win.place(x=90, y=95)
+    win.insert(tk.END, "60")
+    def click_setting():
+        global ovr_l,win_l,do_record
+        ovr_l = int(ovr.get())
+        win_l = int(win.get())
+        do_record=True
+        root.destroy()
+
+    def click_setting2():
+        global ovr_l, win_l,do_record
+        ovr_l = int(ovr.get())
+        win_l = int(win.get())
+        do_record=False
+        root.destroy()
+
+    button["command"] = click_setting
+    button2["command"] = click_setting2
+    root.mainloop()
+#-----------------------------------------
   # ovr_l=32
   # win_l=64
+    myo.init()
+    hub = myo.Hub()
+    listener = EmgCollector(512)
 
-  myo.init()
-  hub = myo.Hub()
-  listener = EmgCollector(512)
+    features_finger=[]
+    features_wrist=[]
+    with hub.run_in_background(listener.on_event):
+        global lda_finger, lda_wrist
+        if do_record==True:
+            print("record")
+            while True:
+                Train(listener).main()
+                print("LDA training start")
+                global finger_label
+                for i in range(int(len(emg_train[0]) / ovr_l - 1)):
+                    tmp = i * ovr_l
+                    emg_features.append(feature_calc(emg_train[:,tmp:tmp+win_l],win_l))
+                    features_finger.append(finger_label[tmp])
+                    features_wrist.append(wrist_label[tmp])
+                df = pd.DataFrame(emg_features)
+                tmp=np.array(features_finger)
+                np.savetxt("features_finger.txt", tmp, fmt='%s', delimiter=',')
+                tmp = np.array(features_wrist)
+                np.savetxt("features_wrist.txt", tmp, fmt='%s', delimiter=',')
+                df.to_csv("EMG_features.csv")   #データ一回作っておこう8/22
 
-  features_finger=[]
-  features_wrist=[]
-  with hub.run_in_background(listener.on_event):
 
-    # while True:
-    #     tmp = input("record finger EMG? y/n: ")
-    #     if tmp == "y":
-    #         Train(listener).main()
-    #     print("LDA training start")
-    #     global finger_label
-    #     for i in range(int(len(emg_train[0]) / ovr_l - 1)):
-    #         tmp = i * ovr_l
-    #         emg_features.append(feature_calc(emg_train[:,tmp:tmp+win_l],win_l))
-    #         features_finger.append(finger_label[tmp])
-    #         features_wrist.append(wrist_label[tmp])
-    #     df = pd.DataFrame(emg_features)
-    #     tmp=np.array(features_finger)
-    #     np.savetxt("features_finger.txt", tmp, fmt='%s', delimiter=',')
-    #     tmp = np.array(features_wrist)
-    #     np.savetxt("features_wrist.txt", tmp, fmt='%s', delimiter=',')
-    #     df.to_csv("EMG_features.csv")   #データ一回作っておこう8/22
+        if do_record==False:
+            print("test")
+            df = pd.read_csv('EMG_features.csv', header=0, index_col=0)
+            features_finger = np.loadtxt("features_finger.txt")
+            features_wrist = np.loadtxt("features_wrist.txt")
 
-        #lda_finger = LinearDiscriminantAnalysis(n_components=2)
-
-        global lda_finger,lda_wrist
-        df = pd.read_csv('EMG_features.csv', header=0, index_col=0)
-        features_finger = np.loadtxt("features_finger.txt")
-        features_wrist = np.loadtxt("features_wrist.txt")
         finger_motion = lda_finger.fit(df.values, features_finger).transform(df.values)
         wrist_motion = lda_wrist.fit(df.values, features_wrist).transform(df.values)
 
@@ -310,12 +348,12 @@ def main():
         #plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0, fontsize=12)
         #plt.title('LDA', fontsize=20)
 
-        plt.pause(0.05)
-        tmp = input("start Train with FeedBuck? y/n: ")
-        if tmp == "y":
-            Train(listener).Test_emg(1)
-        if tmp =="n":
-            plt.gca().clear()  # 確認で表示したクラスター図の削除
-            Train(listener).Test_emg(0)
+    plt.pause(0.05)
+    tmp = input("start Train with FeedBuck? y/n: ")
+    if tmp == "y":
+        Train(listener).Test_emg(1)
+    if tmp =="n":
+        plt.gca().clear()  # 確認で表示したクラスター図の削除
+        Train(listener).Test_emg(0)
 if __name__ == '__main__':
   main()
