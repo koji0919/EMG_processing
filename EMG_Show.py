@@ -4,11 +4,10 @@ from threading import Lock, Thread
 import myo
 import time
 import numpy as np
-import keyboard
 import pandas as pd
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from socket import socket, AF_INET, SOCK_DGRAM
-import tkinter as tk
+from statistics import mode
 
 emg_train=np.array([[] for i in range(8)])
 emg_test=np.array([[] for i in range(8)])
@@ -29,7 +28,6 @@ wrist_predict = queue_init(1,10)
 
 testdata_2d_rec=[]  #評価タスク時のデータを格納
 
-print(emg_train.shape )
 finger_label=[]
 wrist_label=[]
 emg_features=[]
@@ -38,6 +36,9 @@ lda_wrist=LinearDiscriminantAnalysis(n_components=2)
 count=0
 ovr_l = 32
 win_l = 64
+fps=0.05
+
+
 queue_len=6
 do_record=True
 class_n = 4  # 指
@@ -74,7 +75,7 @@ def update_plot(scat1,scat2):
     tmp2 = np.array([x for x in list(wrist_2d)])
     scat1.set_offsets(tmp)
     scat2.set_offsets(tmp2)
-    plt.pause(0.001)
+    plt.pause(fps)
 
 
 class EmgCollector(myo.DeviceListener):
@@ -84,7 +85,6 @@ class EmgCollector(myo.DeviceListener):
   def __init__(self, n):
     self.n = n
     self.idle=False  #Trueの間計測を行う
-    self.testflg=False
     self.lock = Lock()
     self.time_pre=0
     self.emg_data_list = [[] for i in range(8)]
@@ -105,9 +105,6 @@ class EmgCollector(myo.DeviceListener):
   def start(self):
       self.emg_data_list = [[] for i in range(8)]
       self.idle=True
-
-  def start_test(self):
-      self.testflg=True
 
   def predict(self):
       #global scat_finger, ax1
@@ -136,11 +133,10 @@ class EmgCollector(myo.DeviceListener):
         if self.idle:
             for i in range(8):
                 self.emg_data_list[i].append(event.emg[i])
-
-        if self.testflg:
             self.emg_data_queue.append((event.timestamp, event.emg))
-            time_cu=time.time()
-            if time_cu-self.time_pre>0.3:
+            time_cu=time.perf_counter()
+            print(time_cu)
+            if time_cu-self.time_pre>fps*0.8:
                 self.time_pre = time_cu
                 thread = Thread(target=self.predict)
                 thread.start()
@@ -154,25 +150,24 @@ class Train(object):
     # def get_emg(self):
     #     emg_data=self.listener.get_emg_data()
     #     emg_data=np.array([x[1] for x in emg_data]).T
-    def Test_emg_fb(self):
+    def Show_emg_fb(self):
         global ax1,finger_2d,scat_finger,ax2,wrist_2d,scat_wrist,finger_predict,wrist_predict
-        snd=socket(AF_INET,SOCK_DGRAM)
-        self.listener.start_test()
+        snd = socket(AF_INET, SOCK_DGRAM)
+        self.listener.start()
         while True:
             update_plot(scat_finger,scat_wrist)
-            msg=str(finger_predict)+str(wrist_predict)
+            msg = str(mode(finger_predict)) + str(mode(wrist_predict))
             snd.sendto(msg.encode(),(ADDR,PORT_TO))
-            if keyboard.is_pressed("space"):  # スペースでテスト終了
-                self.listener.end()
-                tmp = np.array(testdata_2d_rec)
-                np.savetxt("test_result.txt", tmp, fmt='%s', delimiter=',')
-                break
 
-    def Train_emg_nfb(self):
+    def Show_emg_nfb(self):
         fig = plt.figure(figsize=(18, 12))
         ax1 = plt.subplot(121)
         ax2 = plt.subplot(122)
+        snd = socket(AF_INET, SOCK_DGRAM)
+        self.listener.start()
         while True:
+            msg=str(mode(finger_predict))+str(mode(wrist_predict))
+            snd.sendto(msg.encode(),(ADDR,PORT_TO))
             ax1.cla()
             ax2.cla()
             ax1.set_title("finger motion")
@@ -184,11 +179,9 @@ class Train(object):
             ax1.set_xlim(0,class_n)
             ax2.set_ylim(0,6)
             ax2.set_xlim(0,class_m)
-            plt.pause(1.0 / 100)
+            plt.pause(fps)
 
-
-
-def feature_calc(emg,win_l):
+def feature_calc(emg,win_l):    #改変時は横のEMGRecordも同じにすること
     FEATURES = []
     for i in range(8):
         tmp = emg[i]
@@ -208,9 +201,6 @@ def feature_calc(emg,win_l):
     return FEATURES
 
 def main():
-    ovr_l = 32
-    win_l = 64
-    queue_len = 64
     finger_2d = queue_init(2,queue_len)
     wrist_2d = queue_init(2,queue_len)
     finger_predict = queue_init(1,queue_len)
@@ -248,7 +238,7 @@ def main():
                 scat_finger = ax1.scatter(tmp[0], tmp[1], label=label_[k], cmap='viridis', edgecolor='blacK')
             ax1.set_title("finger_pattern")
             ax1.legend(labels=label_, fontsize=12)
-            scat_finger = ax1.scatter(0, 0, label="current", c="crimson", s=250,
+            scat_finger = ax1.scatter(0, 0, label="current", c="crimson", s=100,
                                       marker="X")  # 空撃ちすることでリアルタイム分類時のset_datasに備える
 
             for k in range(class_m):
@@ -259,13 +249,13 @@ def main():
                 scat_wrist = ax2.scatter(tmp[0], tmp[1], label=label__[k], cmap='viridis', edgecolor='blacK')
             ax2.legend(labels=label__, fontsize=12)
             ax2.set_title("wrist_pattern")
-            scat_wrist = ax2.scatter(0, 0, label="current", c="crimson", s=250,
+            scat_wrist = ax2.scatter(0, 0, label="current", c="crimson", s=100,
                                      marker="X")  # 空撃ちすることでリアルタイム分類時のset_datasに備える
 
             plt.pause(0.05)
-            Train(listener).Test_emg_fb()
+            Train(listener).Show_emg_fb()
         if fb =="n":
-            plt.gca().clear()  # 確認で表示したクラスター図の削除
-            Train(listener).Test_emg(0)
+            Train(listener).Show_emg_nfb()
+
 if __name__ == '__main__':
   main()
