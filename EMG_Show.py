@@ -8,6 +8,7 @@ import pandas as pd
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from socket import socket, AF_INET, SOCK_DGRAM
 from statistics import mode
+from scipy.spatial import distance
 
 emg_train=np.array([[] for i in range(8)])
 emg_test=np.array([[] for i in range(8)])
@@ -114,7 +115,6 @@ class EmgCollector(myo.DeviceListener):
       wrist_predict.append(lda_wristresult)
       a= lda_finger.transform(df.values)
       b= lda_wrist.transform(df.values)
-      #print(a)
       global finger_2d,wrist_2d
       finger_2d.append(a[0])
       wrist_2d.append(b[0])
@@ -151,11 +151,60 @@ class Train(object):
             msg = str(mode(finger_predict)) + str(mode(wrist_predict))
             snd.sendto(msg.encode(),(ADDR,PORT_TO))
 
-    def Show_emg_nfb(self):
+    def Show_emg_nfb(self,df,ff,fw,fm,wm):
+        global finger_2d, wrist_2d, finger_predict, wrist_predict
         fig = plt.figure(figsize=(18, 12))
         ax1 = plt.subplot(121)
         ax2 = plt.subplot(122)
         snd = socket(AF_INET, SOCK_DGRAM)
+
+        base_df = df
+        features_finger = ff
+        features_wrist = fw
+        base2d_finger = fm
+        base2d_wrist = wm
+
+        basedata_finger = []  # 0番目から各クラスの重心
+        basedata_wrist = []
+
+        for k in range(class_f):
+            tmp = []
+            tmp.append([base2d_finger[j][0] for j in range(len(base2d_finger)) if features_finger[j] == (k)])
+            tmp.append([base2d_finger[j][1] for j in range(len(base2d_finger)) if features_finger[j] == (k)])
+            basedata_finger.append(tmp)
+
+        for k in range(class_w):
+            tmp = []
+            tmp.append([base2d_wrist[j][0] for j in range(len(base2d_wrist)) if features_finger[j] == (k)])
+            tmp.append([base2d_wrist[j][1] for j in range(len(base2d_wrist)) if features_finger[j] == (k)])
+            basedata_wrist.append(tmp)
+
+        basedata_f_centers = []
+        basedata_w_centers = []
+
+        for i in range(class_f):
+            tmp = []
+            tmp.append(np.mean(basedata_finger[i][0]))
+            tmp.append(np.mean(basedata_finger[i][1]))
+            basedata_f_centers.append(tmp)
+
+        for i in range(class_w):
+            tmp = []
+            tmp.append(np.mean(basedata_wrist[i][0]))
+            tmp.append(np.mean(basedata_wrist[i][1]))
+            basedata_w_centers.append(tmp)
+
+        # --ここまでが初回計測データからの重心計算と、使用ファイル読み込み
+        # ここからが計測データの処理
+        basedata_f_cov = []
+        basedata_w_cov = []
+
+        for i in range(class_f):
+            tmp = np.cov(basedata_finger[i][0], basedata_finger[i][1])
+            basedata_f_cov.append(np.linalg.pinv(tmp))
+        for i in range(class_w):
+            tmp = np.cov(basedata_wrist[i][0], basedata_wrist[i][1])
+            basedata_w_cov.append(np.linalg.pinv(tmp))
         self.listener.start()
         while True:
             msg=str(mode(finger_predict))+str(mode(wrist_predict))
@@ -164,14 +213,16 @@ class Train(object):
             ax2.cla()
             ax1.set_title("finger motion")
             ax2.set_title("wrist motion")
-            ax1.bar([1,2,3], hist_data(finger_predict, class_f))
-            print(finger_predict, class_f)
-            ax2.bar([1,2,3,4], hist_data(wrist_predict, class_w))
-            ax1.set_ylim(0,6)
+            f_maharanobis=distance.mahalanobis(list(finger_2d[-1]),basedata_f_centers[finger_predict[-1]],basedata_f_cov[finger_predict[-1]])
+            w_maharanobis = distance.mahalanobis(list(wrist_2d[-1]), basedata_w_centers[wrist_predict[-1]],basedata_w_cov[wrist_predict[-1]])
+            #print(finger_predict[-1],f_maharanobis, wrist_predict[-1],w_maharanobis)
+            ax1.bar([1], f_maharanobis)
+            ax2.bar([1], w_maharanobis)
+            ax1.set_ylim(0,7.2)
             ax1.set_xlim(0, class_f)
-            ax2.set_ylim(0,6)
+            ax2.set_ylim(0,7.2)
             ax2.set_xlim(0, class_w)
-            plt.pause(fps)
+            plt.pause(0.00001)
 
 def feature_calc(emg,win_l):    #改変時は横のEMGRecordも同じにすること
     FEATURES = []
@@ -247,7 +298,7 @@ def main():
             plt.pause(0.05)
             Train(listener).Show_emg_fb()
         if fb =="n":
-            Train(listener).Show_emg_nfb()
+            Train(listener).Show_emg_nfb(df,features_finger,features_wrist,finger_motion,wrist_motion)
 
 if __name__ == '__main__':
   main()
