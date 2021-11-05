@@ -143,7 +143,7 @@ class Record(object):
         while True:
             msg, address = self.rcv.recvfrom(8192)
             msg_=int(msg[0] - 48)
-            print(msg)
+
             if self.VR_test_start==0 and msg_==1:
                 self.VR_test_start=1
                 global testdata_2d_rec
@@ -151,23 +151,16 @@ class Record(object):
                 print("msg received record start")
                 self.listener.start()
 
-            if self.VR_test_start==1 and msg_==0:
+            if self.VR_test_start==1 and msg_==9:
                 self.VR_test_start=0
                 self.listener.end
                 print("msg received record finished")
-                self.save_file()
+                self.save_file(msg.decode()[1:])
 
-    def save_file(self):
-        filename=input("filename")
+    def save_file(self,filename):
+        #filename=input("filename")
         df=pd.DataFrame(testdata_2d_rec)
         df.to_csv(filename)  # データを保存
-
-
-
-
-
-
-
 
 def feature_calc(emg,win_l):
     FEATURES = []
