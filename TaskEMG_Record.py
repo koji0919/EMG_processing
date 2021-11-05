@@ -78,7 +78,7 @@ class EmgCollector(myo.DeviceListener):
     self.emg_data_list = [[] for i in range(8)]
     self.emg_data_queue = queue_init(1,win_l)  #テスト時の取得筋電位データの数はここで決定
     self.start_time=time.time()
-
+    self.sampleamount = 0
 
   def get_emg_queue(self):
     with self.lock:
@@ -88,7 +88,7 @@ class EmgCollector(myo.DeviceListener):
     event.device.stream_emg(True)
 
   def start(self):
-      #self.emg_data_list = [[] for i in range(8)]
+      self.emg_data_list = [[] for i in range(8)]
       self.idle=True
 
   def predict(self):
@@ -115,16 +115,15 @@ class EmgCollector(myo.DeviceListener):
   def on_emg(self, event):
     with self.lock:
         if self.idle:
-            for i in range(8):
-                self.emg_data_list[i].append(event.emg[i])
+            tmp=event.emg
+            self.sampleamount+=1
             self.emg_data_queue.append((event.timestamp, event.emg))
-            time_cu=time.perf_counter()
-            # print(time_cu)
-            if time_cu-self.time_pre>fps*0.8:
-                self.time_pre = time_cu
+
+            if self.sampleamount==32:
+                self.sampleamount=0
                 thread = Thread(target=self.predict)
                 thread.start()
-                thread.join(0.001) #デーモンプロセスの大量発生を防ぐため
+                thread.join(0.0001)
 
 class Record(object):
     def __init__(self,listener):
@@ -155,7 +154,7 @@ class Record(object):
                 self.VR_test_start=0
                 self.listener.end
                 print("msg received record finished")
-                self.save_file(msg.decode()[1:])
+                self.save_file(msg.decode()[1:]+".csv")
 
     def save_file(self,filename):
         #filename=input("filename")

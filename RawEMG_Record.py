@@ -40,8 +40,8 @@ ovr_l = 32
 win_l = 64
 queue_len=6
 do_record=True
-class_n = 4  # 指
-class_m = 4  # 手首
+class_w = 4  # 指
+class_f = 3  # 手首
 
 ax1=0    #pltのリアルタイムプロット用のグローバル変数(0は仮で代入)
 ax2=0
@@ -66,11 +66,9 @@ class EmgCollector(myo.DeviceListener):
     self.idle=False  #Trueの間計測を行う
     self.testflg=False
     self.lock = Lock()
-    self.time_pre=0
     self.emg_data_list = [[] for i in range(8)]
     self.emg_data_queue = deque(maxlen=win_l)  #テスト時の取得筋電位データの数はここで決定
-    self.start_time=time.time()
-
+    self.num=0
   def get_emg_data(self):
     with self.lock:
       return list(self.emg_data_list)
@@ -85,15 +83,18 @@ class EmgCollector(myo.DeviceListener):
   def start(self):
       self.emg_data_list = [[] for i in range(8)]
       self.idle=True
+      self.num=0
 
   def end(self):
       self.idle=False
-
+      print(self.num)
   def on_emg(self, event):
     with self.lock:
         if self.idle:
+            self.num+=1
+            tmp=event.emg
             for i in range(8):
-                self.emg_data_list[i].append(event.emg[i])
+                self.emg_data_list[i].append(tmp[i])
 
 class Record(object):
     def __init__(self,listener):
@@ -111,7 +112,7 @@ class Record(object):
         tmp_f=0
         global finger_label,wrist_label
         wristmotion = ["nomotion","flexion", "pronation", "supination"]
-        fingermotion = ["nomotion", "fist", "pinch", "spread"]
+        fingermotion = ["fist", "pinch", "spread"]
         print(wristmotion[tmp_w],"-",fingermotion[tmp_f])
         starttime=0
         while True:
@@ -123,17 +124,19 @@ class Record(object):
                     starttime=time.perf_counter()
                     self.listener.start()
 
-            if time.perf_counter()-starttime>5.0 and flag_start:
+            if time.perf_counter()-starttime>5 and flag_start:
                 print("...end")
                 self.listener.end()
                 global emg_train
                 emg_data=self.listener.get_emg_data()
                 emg_train=np.concatenate([emg_train,np.array(emg_data) ],1)
+                print(len(emg_data))
+                print(len(emg_data[0]))
                 finger_label.extend([tmp_f for i in range(len(emg_data[0]))])
                 wrist_label.extend([tmp_w for i in range(len(emg_data[0]))])
                 flag_start = False
                 tmp_f+=1
-                if tmp_f==4:
+                if tmp_f==class_f:
                     tmp_w+=1
                     tmp_f=0
                     if(tmp_w==4):
@@ -202,9 +205,9 @@ def main():
         global ax1,ax2,scat_finger,scat_wrist
         ax1 = plt.subplot(121)
         ax2 = plt.subplot(122)
-        label_ = ["nomotion","fist", "point","spread"]
+        label_ = ["fist", "point","spread"]
         label__= ["nomotion","flexion", "pronation", "supination"]
-        for k in range(class_n):    #手描画
+        for k in range(class_f):    #手描画
             tmp = []
             tmp.append([finger_motion[j][0] for j in range(len(finger_motion)) if features_finger[j] == (k)])
             tmp.append([finger_motion[j][1] for j in range(len(finger_motion)) if features_finger[j] == (k)])
@@ -214,7 +217,7 @@ def main():
         ax1.legend(labels=label_, fontsize=12)
         scat_finger = ax1.scatter(0, 0, label="current", c="crimson", s=250, marker="X") #空撃ちすることでリアルタイム分類時のset_datasに備える
 
-        for k in range(class_m):
+        for k in range(class_w):
             tmp=[]
             tmp.append([wrist_motion[j][0] for j in range(len(wrist_motion)) if features_wrist[j] == (k)])
             tmp.append([wrist_motion[j][1] for j in range(len(wrist_motion)) if features_wrist[j] == (k)])

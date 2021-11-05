@@ -41,8 +41,8 @@ fps=0.05
 
 queue_len=6
 do_record=True
-class_n = 4  # 指
-class_m = 4  # 手首
+class_f = 3  # 指
+class_w = 4  # 手首
 
 ADDR = '127.0.0.1'
 PORT_TO = 50007 #送信ポート
@@ -67,10 +67,10 @@ def hist_data(inputs,n):
     inputlist=list(inputs)
     for i in range(n):
         results.append(inputlist.count((i+1)))
-    print(results)
     return results
 
 def update_plot(scat1,scat2):
+    print
     tmp = np.array([x for x in list(finger_2d)])
     tmp2 = np.array([x for x in list(wrist_2d)])
     scat1.set_offsets(tmp)
@@ -87,13 +87,9 @@ class EmgCollector(myo.DeviceListener):
     self.idle=False  #Trueの間計測を行う
     self.lock = Lock()
     self.time_pre=0
-    self.emg_data_list = [[] for i in range(8)]
     self.emg_data_queue = deque(maxlen=win_l)  #テスト時の取得筋電位データの数はここで決定
     self.start_time=time.time()
-
-  def get_emg_data(self):
-    with self.lock:
-      return list(self.emg_data_list)
+    self.sampleamount = 0
 
   def get_emg_queue(self):
     with self.lock:
@@ -103,7 +99,6 @@ class EmgCollector(myo.DeviceListener):
     event.device.stream_emg(True)
 
   def start(self):
-      self.emg_data_list = [[] for i in range(8)]
       self.idle=True
 
   def predict(self):
@@ -131,15 +126,15 @@ class EmgCollector(myo.DeviceListener):
   def on_emg(self, event):
     with self.lock:
         if self.idle:
-            for i in range(8):
-                self.emg_data_list[i].append(event.emg[i])
+            tmp=event.emg
+            self.sampleamount+=1
             self.emg_data_queue.append((event.timestamp, event.emg))
-            time_cu=time.perf_counter()
-            print(time_cu)
-            if time_cu-self.time_pre>fps*0.8:
-                self.time_pre = time_cu
+
+            if self.sampleamount==32:
+                self.sampleamount=0
                 thread = Thread(target=self.predict)
                 thread.start()
+                thread.join(0.0001)
 
 
 
@@ -147,9 +142,6 @@ class Train(object):
     def __init__(self,listener):
         self.n = listener.n
         self.listener = listener
-    # def get_emg(self):
-    #     emg_data=self.listener.get_emg_data()
-    #     emg_data=np.array([x[1] for x in emg_data]).T
     def Show_emg_fb(self):
         global ax1,finger_2d,scat_finger,ax2,wrist_2d,scat_wrist,finger_predict,wrist_predict
         snd = socket(AF_INET, SOCK_DGRAM)
@@ -172,13 +164,13 @@ class Train(object):
             ax2.cla()
             ax1.set_title("finger motion")
             ax2.set_title("wrist motion")
-            ax1.bar([1,2,3],hist_data(finger_predict, class_n))
-            print(finger_predict, class_n)
-            ax2.bar([1,2,3,4],hist_data(wrist_predict, class_m))
+            ax1.bar([1,2,3], hist_data(finger_predict, class_f))
+            print(finger_predict, class_f)
+            ax2.bar([1,2,3,4], hist_data(wrist_predict, class_w))
             ax1.set_ylim(0,6)
-            ax1.set_xlim(0,class_n)
+            ax1.set_xlim(0, class_f)
             ax2.set_ylim(0,6)
-            ax2.set_xlim(0,class_m)
+            ax2.set_xlim(0, class_w)
             plt.pause(fps)
 
 def feature_calc(emg,win_l):    #改変時は横のEMGRecordも同じにすること
@@ -228,9 +220,9 @@ def main():
             global ax1, ax2, scat_finger, scat_wrist
             ax1 = plt.subplot(121)
             ax2 = plt.subplot(122)
-            label_ = ["nomotion", "fist", "point", "spread"]
+            label_ = ["fist", "point", "spread"]
             label__ = ["nomotion", "flexion", "pronation", "supination"]
-            for k in range(class_n):  # 手描画
+            for k in range(class_f):  # 手描画
                 tmp = []
                 tmp.append([finger_motion[j][0] for j in range(len(finger_motion)) if features_finger[j] == (k)])
                 tmp.append([finger_motion[j][1] for j in range(len(finger_motion)) if features_finger[j] == (k)])
@@ -241,7 +233,7 @@ def main():
             scat_finger = ax1.scatter(0, 0, label="current", c="crimson", s=100,
                                       marker="X")  # 空撃ちすることでリアルタイム分類時のset_datasに備える
 
-            for k in range(class_m):
+            for k in range(class_w):
                 tmp = []
                 tmp.append([wrist_motion[j][0] for j in range(len(wrist_motion)) if features_wrist[j] == (k)])
                 tmp.append([wrist_motion[j][1] for j in range(len(wrist_motion)) if features_wrist[j] == (k)])
