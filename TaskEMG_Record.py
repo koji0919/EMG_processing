@@ -4,11 +4,9 @@ from threading import Lock, Thread
 import myo
 import time
 import numpy as np
-import keyboard
 import pandas as pd
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from socket import socket, AF_INET, SOCK_DGRAM
-import tkinter as tk
 
 emg_train=np.array([[] for i in range(8)])
 emg_test=np.array([[] for i in range(8)])
@@ -36,18 +34,13 @@ emg_features=[]
 
 task_data=[]
 lda_finger=LinearDiscriminantAnalysis(n_components=2)
-lda_wrist=LinearDiscriminantAnalysis(n_components=2)
 count=0
 ovr_l = 32
 win_l = 64
-fps=0.05
-
-
-
+fps=0.001
 queue_len=6
 do_record=True
 class_n = 7  # 指
-class_m = 7  # 手首
 
 def queue_init(dim,q_length):
     tmp=deque(maxlen=q_length)
@@ -57,14 +50,6 @@ def queue_init(dim,q_length):
     for i in range(q_length):
         tmp.append(a)
     return tmp
-
-def hist_data(inputs,n):
-    results=[]
-    inputlist=list(inputs)
-    for i in range(n):
-        results.append(inputlist.count((i+1)))
-    print(results)
-    return results
 
 class EmgCollector(myo.DeviceListener):
   """
@@ -97,17 +82,13 @@ class EmgCollector(myo.DeviceListener):
       tmp=np.array([x[1] for x in tmp]).T
       test_features=[feature_calc(tmp, win_l)]
       df = pd.DataFrame(test_features)
-      global finger_predict,wrist_predict,testdata_2d_rec
+      global finger_predict,testdata_2d_rec
       lda_fingerresult=int(lda_finger.predict(df.values))
-      lda_wristresult=int(lda_wrist.predict(df.values))
       finger_predict.append(lda_fingerresult)
-      wrist_predict.append(lda_wristresult)
       a= lda_finger.transform(df.values)
-      b= lda_wrist.transform(df.values)
-      global finger_2d,wrist_2d
+      global finger_2d
       finger_2d.append(a[0])
-      wrist_2d.append(b[0])
-      testdata_2d_rec.append([lda_fingerresult,a[0][0],a[0][1],lda_wristresult,b[0][0],b[0][1]])
+      testdata_2d_rec.append([lda_fingerresult,a[0][0],a[0][1]])
 
   def end(self):
       self.idle=False
@@ -156,7 +137,6 @@ class Record(object):
                 self.save_file(msg.decode()[1:]+".csv")
 
     def save_file(self,filename):
-        #filename=input("filename")
         df=pd.DataFrame(testdata_2d_rec)
         df.to_csv(filename)  # データを保存
 
@@ -181,9 +161,7 @@ def feature_calc(emg,win_l):
 
 def main():
     finger_2d = queue_init(2,queue_len)
-    wrist_2d = queue_init(2,queue_len)
     finger_predict = queue_init(1,queue_len)
-    wrist_predict = queue_init(1,queue_len)
 #-----------------------------------------
     myo.init()
     hub = myo.Hub()
@@ -192,19 +170,11 @@ def main():
     with hub.run_in_background(listener.on_event):
         global lda_finger, lda_wrist
         print("Task")
-        df = pd.read_csv('kmr_l.csv', header=0, index_col=0)
+        df = pd.read_csv('test.csv', header=0, index_col=0)
         features_finger = df.values[:, -1]
-        features_wrist=df.values[:, -1]
         df = df.values[:, 0:-1]
-        # features_finger = np.loadtxt("features_finger_KNK.txt")
-        # features_wrist = np.loadtxt("features_wrist_KNK.txt")
-
         finger_motion = lda_finger.fit(df, features_finger)
-        wrist_motion = lda_wrist.fit(df, features_wrist)
-
-        fb = input("start Record with Unity? y/n:") #yでUnityからの開始信号待ち
-        if fb == "y":
-            Record(listener).main()
+        Record(listener).main()
 
 
 if __name__ == '__main__':
