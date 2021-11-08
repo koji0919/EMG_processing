@@ -82,6 +82,8 @@ class EmgCollector(myo.DeviceListener):
     event.device.stream_emg(True)
 
   def start(self):
+      for i in range(ovr_l):
+        self.emg_data_queue.append((0, [0,0,0,0,0,0,0,0]))
       self.idle=True
 
   def predict(self):

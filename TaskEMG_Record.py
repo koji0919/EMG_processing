@@ -73,7 +73,8 @@ class EmgCollector(myo.DeviceListener):
     event.device.stream_emg(True)
 
   def start(self):
-      self.emg_data_list = [[] for i in range(8)]
+      for i in range(ovr_l):
+          self.emg_data_queue.append((0, [0, 0, 0, 0, 0, 0, 0, 0]))
       self.idle=True
 
   def predict(self):
@@ -160,8 +161,6 @@ def feature_calc(emg,win_l):
     return FEATURES
 
 def main():
-    finger_2d = queue_init(2,queue_len)
-    finger_predict = queue_init(1,queue_len)
 #-----------------------------------------
     myo.init()
     hub = myo.Hub()
