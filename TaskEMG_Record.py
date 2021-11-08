@@ -46,8 +46,8 @@ fps=0.05
 
 queue_len=6
 do_record=True
-class_n = 4  # 指
-class_m = 4  # 手首
+class_n = 7  # 指
+class_m = 7  # 手首
 
 def queue_init(dim,q_length):
     tmp=deque(maxlen=q_length)
@@ -117,8 +117,7 @@ class EmgCollector(myo.DeviceListener):
         if self.idle:
             tmp=event.emg
             self.sampleamount+=1
-            self.emg_data_queue.append((event.timestamp, event.emg))
-
+            self.emg_data_queue.append((event.timestamp, tmp))
             if self.sampleamount==32:
                 self.sampleamount=0
                 thread = Thread(target=self.predict)
@@ -193,12 +192,15 @@ def main():
     with hub.run_in_background(listener.on_event):
         global lda_finger, lda_wrist
         print("Task")
-        df = pd.read_csv('EMG_features.csv', header=0, index_col=0)
-        features_finger = np.loadtxt("features_finger.txt")
-        features_wrist = np.loadtxt("features_wrist.txt")
+        df = pd.read_csv('test.csv', header=0, index_col=0)
+        features_finger = df.values[:, -1]
+        features_wrist=df.values[:, -1]
+        df = df.values[:, 0:-1]
+        # features_finger = np.loadtxt("features_finger_KNK.txt")
+        # features_wrist = np.loadtxt("features_wrist_KNK.txt")
 
-        finger_motion = lda_finger.fit(df.values, features_finger)
-        wrist_motion = lda_wrist.fit(df.values, features_wrist)
+        finger_motion = lda_finger.fit(df, features_finger)
+        wrist_motion = lda_wrist.fit(df, features_wrist)
 
         fb = input("start Record with Unity? y/n:") #yでUnityからの開始信号待ち
         if fb == "y":
