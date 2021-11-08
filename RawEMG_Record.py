@@ -7,11 +7,8 @@ import numpy as np
 import keyboard
 import pandas as pd
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from socket import socket, AF_INET, SOCK_DGRAM
-import tkinter as tk
 
 emg_train=np.array([[] for i in range(8)])
-emg_test=np.array([[] for i in range(8)])
 
 def queue_init(dim,q_length):   #キューを作成する
     tmp=deque(maxlen=q_length)
@@ -23,24 +20,20 @@ def queue_init(dim,q_length):   #キューを作成する
     return tmp
 
 finger_2d = queue_init(2,10)
-wrist_2d = queue_init(2,10)
 finger_predict = queue_init(1,10)
-wrist_predict = queue_init(1,10)
 
 testdata_2d_rec=[]  #評価タスク時のデータを格納
 
 print(emg_train.shape )
 finger_label=[]
-wrist_label=[]
 emg_features=[]
 lda_finger=LinearDiscriminantAnalysis(n_components=2)
-lda_wrist=LinearDiscriminantAnalysis(n_components=2)
 count=0
 ovr_l = 32
 win_l = 64
 queue_len=6
 do_record=True
-class_w = 7
+
 class_f = 7
 
 ax1=0    #pltのリアルタイムプロット用のグローバル変数(0は仮で代入)
@@ -100,9 +93,6 @@ class Record(object):
     def __init__(self,listener):
         self.n = listener.n
         self.listener = listener
-    # def get_emg(self):
-    #     emg_data=self.listener.get_emg_data()
-    #     emg_data=np.array([x[1] for x in emg_data]).T
 
     def main(self):
         flag_pressed=False
@@ -110,8 +100,7 @@ class Record(object):
         flag_start=False
         tmp_w=0
         tmp_f=0
-        global finger_label,wrist_label
-        wristmotion = ["nomotion","flexion", "pronation", "supination"]
+        global finger_label
         fingermotion = ["fist", "point","wave in","wave out","spread","nomotion","fox"]
         print(fingermotion[tmp_f])
         starttime=0
@@ -133,7 +122,6 @@ class Record(object):
                 print(len(emg_data))
                 print(len(emg_data[0]))
                 finger_label.extend([tmp_f for i in range(len(emg_data[0]))])
-                wrist_label.extend([tmp_w for i in range(len(emg_data[0]))])
                 flag_start = False
                 tmp_f+=1
                 if tmp_f==class_f:
@@ -168,16 +156,13 @@ def main():
     queue_len = 64
 
     finger_2d = queue_init(2,queue_len)
-    wrist_2d = queue_init(2,queue_len)
     finger_predict = queue_init(1,queue_len)
-    wrist_predict = queue_init(1,queue_len)
 #-----------------------------------------
     myo.init()
     hub = myo.Hub()
     listener = EmgCollector(512)
 
     features_finger=[]
-    features_wrist=[]
     with hub.run_in_background(listener.on_event):
         global lda_finger, lda_wrist
         print("record")
@@ -190,22 +175,14 @@ def main():
             tmp1.append(finger_label[tmp])
             emg_features.append(tmp1     )
             features_finger.append(finger_label[tmp])
-            #features_wrist.append(wrist_label[tmp])
         df = pd.DataFrame(emg_features)
         tmp=np.array(features_finger)
-        np.savetxt("test1.txt", tmp, fmt='%s', delimiter=',')
-        #tmp=np.array(features_wrist)
-        #np.savetxt("test2.txt", tmp, fmt='%s', delimiter=',')
-        df.to_csv("kmr_l.csv")   #実験用のデータを保存する
+        df.to_csv("test.csv")   #実験用のデータを保存する
 
         finger_motion = lda_finger.  fit(df.values, features_finger).transform(df.values)
-        #wrist_motion = lda_wrist.fit(df.values, features_wrist).transform(df.values)
-        fig = plt.figure(figsize=(18, 12))
-        global ax1,ax2,scat_finger,scat_wrist
+        global ax1,scat_finger
         ax1 = plt.subplot(111)
-        #ax2 = plt.subplot(122)
         label_ = ["fist", "point","wave in","wave out","spread","nomotion","fox"]
-        #label__= ["nomotion","flexion", "pronation", "supination"]
         for k in range(class_f):    #手描画
             tmp = []
             tmp.append([finger_motion[j][0] for j in range(len(finger_motion)) if features_finger[j] == (k)])
@@ -215,16 +192,6 @@ def main():
         ax1.set_title("finger_pattern")
         ax1.legend(labels=label_, fontsize=12)
         scat_finger = ax1.scatter(0, 0, label="current", c="crimson", s=250, marker="X") #空撃ちすることでリアルタイム分類時のset_datasに備える
-
-        # for k in range(class_w):
-        #     tmp=[]
-        #     tmp.append([wrist_motion[j][0] for j in range(len(wrist_motion)) if features_wrist[j] == (k)])
-        #     tmp.append([wrist_motion[j][1] for j in range(len(wrist_mot      ion)) if features_wrist[j] == (k)])
-        #     tmp = np.array(tmp)
-        #     scat_wrist = ax2.scatter(tmp[0], tmp[1], label=label__[k], cmap='viridis', edgecolor='blacK')
-        # ax2.legend(labels=label__, fontsize=12)
-        # ax2.set_title("wrist_pattern")
-        # scat_wrist = ax2.scatter(0, 0, label="current", c="crimson", s=250, marker="X")  # 空撃ちすることでリアルタイム分類時のset_datasに備える
         plt.show()
 
 if __name__ == '__main__':
