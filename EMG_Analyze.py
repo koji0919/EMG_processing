@@ -7,7 +7,7 @@ class_f = 7  # 指
 
 lda_finger=LinearDiscriminantAnalysis(n_components=2)
 
-base_df = pd.read_csv('test.csv', header=0, index_col=0)
+base_df = pd.read_csv('kmr.csv', header=0, index_col=0)
 features_finger = base_df.values[:,-1]
 base_df=base_df.values[:,0:-1]
 base2d_finger = lda_finger.fit(base_df, features_finger).transform(base_df)
@@ -38,40 +38,57 @@ for i in range(class_f):
 
 input_f_maharanobis=[]
 
-input_df = pd.read_csv('record.csv', header=0, index_col=0)
+input_df = pd.read_csv('1108rec1.csv', header=0, index_col=0)
 input_finger2d=np.array(input_df.values[:,0:3])
 input_wrist2d=np.array(input_df.values[:,3:6])
 
 input_f_labels=np.array(input_df.values[:,0])
-for i in range(len(input_finger2d)):
-    input_f_maharanobis.append(distance.mahalanobis(list(input_finger2d[i][1:3]),basedata_f_centers[0],basedata_f_cov[int(input_finger2d[i][0])-1]))
+for j in range(class_f):
+    center=basedata_f_centers[j]
+    tmp=[]
+    for i in range(len(input_finger2d)):
+        tmp.append(distance.mahalanobis(list(input_finger2d[i][1:3]),center,basedata_f_cov[int(input_finger2d[i][0])-1]))
+    input_f_maharanobis.append(tmp)
 
-fig, ax = plt.subplots()
 
-ax.plot(np.arange(len(input_f_maharanobis)),input_f_maharanobis) #int(input_finger2d[i][0])-1
-ax.grid()
+fig, axlist = plt.subplots(2,1,figsize=(18.0, 12.0))
+id=421
+title=["fist", "point","wave in","wave out","spread","nomotion","fox"]
+i=0
+for ax in axlist:
+    ax.set_title(title[i])
+    ax.plot(np.arange(len(input_f_maharanobis[0])),input_f_maharanobis[i]) #int(input_finger2d[i][0])-1
+    ax.grid()
+    ax.set_xlabel('time(1 sample/0.16s)')
+    ax.set_ylabel('maharanobis distance')
+    i+=1
+plt.subplots_adjust(wspace=0.4, hspace=1)
+
 target_class=0
 pre=9
 target_flag=False
 part_ave_mahalanobis=[]
-ttt=0
-for i in range(len(input_finger2d)-1):    #len(input_finger2d)-1
-    if target_flag:
-        tmp.append(input_f_maharanobis[i])
-    if input_finger2d[i][0] != pre:
-        if target_flag:
-            ax.axvspan(start, i, facecolor='orange', alpha=0.5)
-            target_flag=False
-            print(ttt)
-            ttt+=1
-            part_ave_mahalanobis.append(round(np.mean(tmp),4))
-        if input_finger2d[i][0]==target_class:
-            start=i
-            target_flag=True
-            tmp = []
-        pre=input_finger2d[i][0]
+tmp=[]
+j=0
+for ax in axlist:
 
-print(part_ave_mahalanobis)
+    for i in range(len(input_finger2d)):    #len(input_finger2d)-1
+        if target_flag:
+            tmp.append(input_f_maharanobis[j][i])
+        if input_finger2d[i][0] != pre:
+            if target_flag:
+                ax.axvspan(start, i, facecolor='orange', alpha=0.5)
+                target_flag=False
+                part_ave_mahalanobis.append(round(np.mean(tmp),4))
+
+            if input_finger2d[i][0]==target_class:
+                start=i
+                target_flag=True
+                tmp = []
+            pre=input_finger2d[i][0]
+    print(part_ave_mahalanobis)
+    j+=1
+
 plt.xlabel('time(1 sample/0.16s)')
 plt.ylabel('maharanobis distance')
 plt.show()
