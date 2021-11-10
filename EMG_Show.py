@@ -207,7 +207,6 @@ def main():
         global lda_finger, lda_wrist
         print("training")
         df = pd.read_csv('test.csv', header=0, index_col=0)
-
         features_finger = df.values[:,-1]
         df=df.values[:,0:-1]
         finger_motion = lda_finger.fit(df, features_finger).transform(df)
