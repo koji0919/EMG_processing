@@ -7,7 +7,7 @@ class_f = 7  # 指
 
 lda_finger=LinearDiscriminantAnalysis(n_components=2)
 
-base_df = pd.read_csv('kmr.csv', header=0, index_col=0)
+base_df = pd.read_csv('kmr_l.csv', header=0, index_col=0)
 features_finger = base_df.values[:,-1]
 base_df=base_df.values[:,0:-1]
 base2d_finger = lda_finger.fit(base_df, features_finger).transform(base_df)
@@ -38,7 +38,7 @@ for i in range(class_f):
 
 input_f_maharanobis=[]
 
-input_df = pd.read_csv('1108rec1.csv', header=0, index_col=0)
+input_df = pd.read_csv('1108rec_l2.csv', header=0, index_col=0)
 input_finger2d=np.array(input_df.values[:,0:3])
 input_wrist2d=np.array(input_df.values[:,3:6])
 
@@ -68,31 +68,43 @@ target_class=0
 pre=9
 target_flag=False
 part_ave_mahalanobis=[]
+part_var_mahalanobis=[]
 tmp=[]
+tmp1=[]
 j=0
 for ax in axlist:
 
     for i in range(len(input_finger2d)):    #len(input_finger2d)-1
         if target_flag:
             tmp.append(input_f_maharanobis[j][i])
+            tmp1.append(input_f_maharanobis[j][i])
         if input_finger2d[i][0] != pre:
             if target_flag:
                 ax.axvspan(start, i, facecolor='orange', alpha=0.5)
                 target_flag=False
-                part_ave_mahalanobis.append(round(np.mean(tmp),4))
-
+                part_ave_mahalanobis.append(round(np.mean(tmp[2:-3]),4))
+                part_var_mahalanobis.append(round(np.var(tmp[2:-2]),4))
             if input_finger2d[i][0]==target_class:
                 start=i
                 target_flag=True
                 tmp = []
             pre=input_finger2d[i][0]
     print(part_ave_mahalanobis)
+    print(part_var_mahalanobis)
     j+=1
+    plt.xlabel('time(1 sample/0.16s)')
+    plt.ylabel('maharanobis distance')
+    plt.show()
+    if j==1 :
+        break
 
-plt.xlabel('time(1 sample/0.16s)')
-plt.ylabel('maharanobis distance')
+
+fig1, ax1 = plt.subplots()
+ax1.set_title('Mahalanobis distance')
+ax1.set_xticklabels(['average'])
+ax1.boxplot(tmp1)
 plt.show()
-
+plt.show()
 
 
 
