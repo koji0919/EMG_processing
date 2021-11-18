@@ -21,7 +21,6 @@ def queue_init(dim,q_length):   #キューを作成する
     return tmp
 
 finger_2d = queue_init(2,10)
-wrist_2d = queue_init(2,10)
 finger_predict = queue_init(1,10)
 wrist_predict = queue_init(1,10)
 
@@ -29,18 +28,17 @@ testdata_2d_rec=[]  #評価タスク時のデータを格納
 
 print(emg_train.shape )
 finger_label=[]
-wrist_label=[]
 emg_features=[]
 
 task_data=[]
 lda_finger=LinearDiscriminantAnalysis(n_components=2)
 count=0
-ovr_l = 32
-win_l = 64
+ovr_l = 20
+win_l = 40
 fps=0.001
 queue_len=6
 do_record=True
-class_n = 7  # 指
+class_n = 10  # 指
 
 def queue_init(dim,q_length):
     tmp=deque(maxlen=q_length)
@@ -100,7 +98,7 @@ class EmgCollector(myo.DeviceListener):
             tmp=event.emg
             self.sampleamount+=1
             self.emg_data_queue.append((event.timestamp, tmp))
-            if self.sampleamount==32:
+            if self.sampleamount==ovr_l:
                 self.sampleamount=0
                 thread = Thread(target=self.predict)
                 thread.start()
@@ -169,7 +167,7 @@ def main():
     with hub.run_in_background(listener.on_event):
         global lda_finger, lda_wrist
         print("Task")
-        df = pd.read_csv('test.csv', header=0, index_col=0)
+        df = pd.read_csv('tmp.csv', header=0, index_col=0)
         features_finger = df.values[:, -1]
         df = df.values[:, 0:-1]
         finger_motion = lda_finger.fit(df, features_finger)

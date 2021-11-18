@@ -30,13 +30,13 @@ finger_label=[]
 emg_features=[]
 lda_finger=LinearDiscriminantAnalysis(n_components=2)
 count=0
-ovr_l = 32
-win_l = 64
+ovr_l = 20
+win_l = 40
 fps=0.001
 
 queue_len=6
 do_record=True
-class_f = 7  # 指
+class_f = 10  # 指
 
 ADDR = '127.0.0.1'
 PORT_TO = 50007 #送信ポート
@@ -57,7 +57,8 @@ def queue_init(dim,q_length):
 def update_plot(scat1,ax1):
     tmp = np.array([x for x in list(finger_2d)])
     scat1.set_offsets(tmp)
-    ax1.set_title("finger motion : " + str(finger_predict[-1]))
+    label_ = ["グー", "人差し指","中薬指","小指","パー","ピース","中指立","内屈","外屈","無動作"]
+    ax1.set_title("finger motion : " + label_[finger_predict[-1]],fontname="MS Gothic")
     plt.pause(fps)
 
 
@@ -109,7 +110,7 @@ class EmgCollector(myo.DeviceListener):
             self.sampleamount+=1
             self.emg_data_queue.append((event.timestamp, event.emg))
 
-            if self.sampleamount==32:
+            if self.sampleamount==ovr_l:
                 self.sampleamount=0
                 thread = Thread(target=self.predict)
                 thread.start()
@@ -125,7 +126,7 @@ class Train(object):
         self.listener.start()
         while True:
             update_plot(scat_finger,ax1)
-            msg = str(mode(finger_predict)) + "0"
+            msg = str(finger_predict[-1]) + "0"
             snd.sendto(msg.encode(),(ADDR,PORT_TO))
 
     def Show_emg_nfb(self,df,ff,fm):
@@ -156,22 +157,22 @@ class Train(object):
         # --ここまでが初回計測データからの重心計算と、使用ファイル読み込み
         # ここからが計測データの処理
         basedata_f_cov = []
-        basedata_w_cov = []
 
         for i in range(class_f):
             tmp = np.cov(basedata_finger[i][0], basedata_finger[i][1])
             basedata_f_cov.append(np.linalg.pinv(tmp))
+
+        label_ =["グー", "人差し指","中薬指","小指","パー","ピース","中指立","内屈","外屈","無動作"]
         self.listener.start()
         while True:
-            msg=str(mode(finger_predict))+"0"
+            msg=str(finger_predict[-1])+"0"
             snd.sendto(msg.encode(),(ADDR,PORT_TO))
             ax1.cla()
-            ax1.set_title("finger motion : "+str(finger_predict[-1]))
+
+            ax1.set_title("finger motion : " + label_[finger_predict[-1]], fontname="MS Gothic")
             f_maharanobis=distance.mahalanobis(list(finger_2d[-1]),basedata_f_centers[finger_predict[-1]],basedata_f_cov[finger_predict[-1]])
             ax1.bar([1], f_maharanobis)
             ax1.set_ylim(0,8)
-
-            print()
             plt.pause(0.00001)
 
 def feature_calc(emg,win_l):    #改変時は横のEMGRecordも同じにすること
@@ -206,7 +207,7 @@ def main():
     with hub.run_in_background(listener.on_event):
         global lda_finger, lda_wrist
         print("training")
-        df = pd.read_csv('test.csv', header=0, index_col=0)
+        df = pd.read_csv('tmp.csv', header=0, index_col=0)
         features_finger = df.values[:,-1]
         df=df.values[:,0:-1]
         finger_motion = lda_finger.fit(df, features_finger).transform(df)
@@ -216,7 +217,7 @@ def main():
             fig = plt.figure(figsize=(18, 12))
             global ax1, ax2, scat_finger, scat_wrist
             ax1 = plt.subplot(111)
-            label_ = ["fist", "point","wave in","wave out","spread","nomotion","fox"]
+            label_ = ["グー", "人差し指","中薬指","小指","パー","ピース","中指立","内屈","外屈","無動作"]
             for k in range(class_f):  # 手描画
                 tmp = []
                 tmp.append([finger_motion[j][0] for j in range(len(finger_motion)) if features_finger[j] == (k)])
@@ -224,7 +225,7 @@ def main():
                 tmp = np.array(tmp)
                 scat_finger = ax1.scatter(tmp[0], tmp[1], label=label_[k], cmap='viridis', edgecolor='blacK')
             ax1.set_title("finger_pattern")
-            ax1.legend(labels=label_, fontsize=12)
+            ax1.legend(labels=label_, fontsize=12,prop={"family":"MS Gothic"})
             scat_finger = ax1.scatter(0, 0, label="current", c="crimson", s=100,
                                       marker="X")  # 空撃ちすることでリアルタイム分類時のset_datasに備える
 
