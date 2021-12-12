@@ -40,7 +40,7 @@ ovr_l = 20
 win_l = 40
 queue_len=6
 do_record=True
-class_f = 10
+class_f = 9
 
 ax1=0    #pltのリアルタイムプロット用のグローバル変数(0は仮で代入)
 ax2=0
@@ -110,7 +110,7 @@ class Record(object):
         tmp_w=0
         tmp_f=0
         global finger_label,wrist_label
-        fingermotion = ["グー", "人差し指","中薬指","小指","パー","ピース","中指立","内屈","外屈","無動作"]#判別10動作実質9動作使用
+        fingermotion = ["グー", "人差し指","中薬指","小指","パー","ピース","内屈","外屈","無動作"]#判別10動作実質9動作使用
         print(fingermotion[tmp_f])
         starttime=0
         while True:
@@ -122,7 +122,7 @@ class Record(object):
                     starttime=time.perf_counter()
                     self.listener.start()
 
-            if time.perf_counter()-starttime>6 and flag_start:
+            if time.perf_counter()-starttime>8 and flag_start:
                 print("...end")
                 self.listener.end()
                 global emg_train
@@ -190,14 +190,14 @@ def main():
             #features_wrist.append(wrist_label[tmp])
         df = pd.DataFrame(emg_features)
         tmp=np.array(features_finger)
-        df.to_csv("tmp.csv")   #実験用のデータを保存する
+        df.to_csv("nkn_r_base5.csv")   #実験用のデータを保存する
 
         finger_motion = lda_finger.  fit(df.values, features_finger).transform(df.values)
         fig = plt.figure(figsize=(18, 12))
         global ax1,ax2,scat_finger,scat_wrist
         ax1 = plt.subplot(111)
         #ax2 = plt.subplot(122)
-        label_ = ["グー", "人差し指","中薬指","小指","パー","ピース","中指立","内屈","外屈","無動作"]
+        label_ = ["グー", "人差し指","中薬指","小指","パー","ピース","内屈","外屈","無動作"]
         #label__= ["nomotion","flexion", "pronation", "supination"]
         for k in range(class_f):    #手描画
             tmp = []

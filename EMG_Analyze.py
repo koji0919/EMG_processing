@@ -53,7 +53,7 @@ for j in range(class_f):
 
 fig, axlist = plt.subplots(2,1,figsize=(18.0, 12.0))
 id=421
-title=["fist", "point","wave in","wave out","spread","nomotion","fox"]
+title=["fist", "point","spread","fox","wave in","wave out","nomotion"]
 i=0
 for ax in axlist:
     ax.set_title(title[i])

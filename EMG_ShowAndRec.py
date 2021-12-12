@@ -36,11 +36,9 @@ fps=0.001
 
 queue_len=6
 do_record=True
-class_f = 10  # 指
+class_f = 9  # 指
 
-ADDR = '127.0.0.1'
-PORT_TO = 50007 #送信ポート
-M_SIZE = 1024
+
 
 ax1=0    #pltのリアルタイムプロット用のグローバル変数(0は仮で代入)
 scat_finger=0
@@ -57,7 +55,7 @@ def queue_init(dim,q_length):
 def update_plot(scat1,ax1):
     tmp = np.array([x for x in list(finger_2d)])
     scat1.set_offsets(tmp)
-    label_ = ["グー", "人差し指","中薬指","小指","パー","ピース","中指立","内屈","外屈","無動作"]
+    label_ = ["グー", "人差し指","中薬指","小指","パー","ピース","内屈","外屈","無動作"]
     ax1.set_title("finger motion : " + label_[finger_predict[-1]],fontname="MS Gothic")
     plt.pause(fps)
 
@@ -122,7 +120,7 @@ class EmgCollector(myo.DeviceListener):
 def Record():
     print("wait msg")
     ADDR = ''
-    PORT = 50004  # 受信ポート
+    PORT = 50004 # 受信ポート
     M_SIZE = 1024
     msg=0
     rcv = socket(AF_INET, SOCK_DGRAM)
@@ -150,6 +148,9 @@ class Train(object):
         self.n = listener.n
         self.listener = listener
     def Show_emg_fb(self):
+        ADDR = '127.0.0.1'
+        PORT_TO = 50007  # 送信ポート
+        M_SIZE = 1024
         global ax1,finger_2d,scat_finger,finger_predict
         snd = socket(AF_INET, SOCK_DGRAM)
         self.listener.start()
@@ -159,6 +160,9 @@ class Train(object):
             snd.sendto(msg.encode(),(ADDR,PORT_TO))
 
     def Show_emg_nfb(self,df,ff,fm):
+        ADDR = '127.0.0.1'
+        PORT_TO = 50007  # 送信ポート
+        M_SIZE = 1024
         global finger_2d,finger_predict
         fig = plt.figure(figsize=(4, 12))
         ax1 = plt.subplot(111)
@@ -191,13 +195,12 @@ class Train(object):
             tmp = np.cov(basedata_finger[i][0], basedata_finger[i][1])
             basedata_f_cov.append(np.linalg.pinv(tmp))
 
-        label_ =["グー", "人差し指","中薬指","小指","パー","ピース","中指立","内屈","外屈","無動作"]
+        label_ =["グー", "人差し指","中薬指","小指","パー","ピース","内屈","外屈","無動作"]
         self.listener.start()
         while True:
             msg=str(finger_predict[-1])+"0"
             snd.sendto(msg.encode(),(ADDR,PORT_TO))
             ax1.cla()
-
             ax1.set_title("finger motion : " + label_[finger_predict[-1]], fontname="MS Gothic")
             f_maharanobis=distance.mahalanobis(list(finger_2d[-1]),basedata_f_centers[finger_predict[-1]],basedata_f_cov[finger_predict[-1]])
             ax1.bar([1], f_maharanobis)
@@ -236,7 +239,7 @@ def main():
     with hub.run_in_background(listener.on_event):
         global lda_finger, lda_wrist
         print("training")
-        df = pd.read_csv('testbaserec.csv', header=0, index_col=0)
+        df = pd.read_csv('nkn_r_base0_.csv', header=0, index_col=0)
         features_finger = df.values[:,-1]
         df=df.values[:,0:-1]
         finger_motion = lda_finger.fit(df, features_finger).transform(df)
@@ -248,7 +251,7 @@ def main():
             fig = plt.figure(figsize=(18, 12))
             global ax1, ax2, scat_finger, scat_wrist
             ax1 = plt.subplot(111)
-            label_ = ["グー", "人差し指","中薬指","小指","パー","ピース","中指立","内屈","外屈","無動作"]
+            label_ = ["グー", "人差し指","中薬指","小指","パー","ピース","内屈","外屈","無動作"]
             for k in range(class_f):  # 手描画
                 tmp = []
                 tmp.append([finger_motion[j][0] for j in range(len(finger_motion)) if features_finger[j] == (k)])
