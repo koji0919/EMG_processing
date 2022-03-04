@@ -1,7 +1,7 @@
 from matplotlib import pyplot as plt
 from collections import deque
 from threading import Lock, Thread
-import myo
+import myo  
 import time
 import numpy as np
 import pandas as pd
@@ -12,7 +12,7 @@ from scipy.spatial import distance
 
 emg_train=np.array([[] for i in range(8)])
 
-def queue_init(dim,q_length):   #キューを作成する
+def queue_init(dim,q_length):   #dim x lengthのキューを作成
     tmp=deque(maxlen=q_length)
     a=0
     if dim==2:
@@ -21,38 +21,30 @@ def queue_init(dim,q_length):   #キューを作成する
         tmp.append(a)
     return tmp
 
-finger_2d = queue_init(2,10)
-finger_predict = queue_init(1,10)
+finger_2d = queue_init(2,10)    #直近10回のデータサンプルの2次元座標を保存
+finger_predict = queue_init(1,10)   #上の座標に対応する直近10回のクラス判別結果を保存
 
 testdata_2d_rec=[]  #評価タスク時のデータを格納
 
 finger_label=[]
 emg_features=[]
-lda_finger=LinearDiscriminantAnalysis(n_components=2)
+lda_finger=LinearDiscriminantAnalysis(n_components=2)   #線形判別分析の学習器作成
+
 count=0
-ovr_l = 20
-win_l = 40
-fps=0.001
+ovr_l = 20  #クラス判別に使用するデータサンプルのオーバーラップ分は20sample
+win_l = 40  #解析窓の長さは40sample分
+
+fps=0.001   #fpsというより、視覚フィードバックの図の更新頻度(とりあえず0.001s感覚でフィードバックに関するwhile部分が動作します)
 
 queue_len=6
 do_record=True
-class_f = 9  # 指
 
+class_f = 9  # 学習データの動作クラス数(使用データに合わせて変更してください)
 
-
-ax1=0    #pltのリアルタイムプロット用のグローバル変数(0は仮で代入)
+ax1=0    #pltのリアルタイムプロット用のグローバル変数(0は仮で代入)(変更不要)
 scat_finger=0
 
-def queue_init(dim,q_length):
-    tmp=deque(maxlen=q_length)
-    a=0
-    if dim==2:
-        a=[0,0]
-    for i in range(q_length):
-        tmp.append(a)
-    return tmp
-
-def update_plot(scat1,ax1):
+def update_plot(scat1,ax1): #
     tmp = np.array([x for x in list(finger_2d)])
     scat1.set_offsets(tmp)
     label_ = ["グー", "人差し指","中薬指","小指","パー","ピース","内屈","外屈","無動作"]
@@ -60,44 +52,42 @@ def update_plot(scat1,ax1):
     plt.pause(fps)
 
 
-class EmgCollector(myo.DeviceListener):
-  """
-  Collects EMG data in a queue with *n* maximum number of elements.
-  """
+class EmgCollector(myo.DeviceListener): #Myo armbandを用いた近電位記録に関数するクラス
+    
   def __init__(self, n):
-    self.n = n
     self.idle=False  #Trueの間計測を行う
     self.lock = Lock()
     self.time_pre=0
-    self.emg_data_queue = deque(maxlen=win_l)  #テスト時の取得筋電位データの数はここで決定
-    self.start_time=time.time()
+    self.emg_data_queue = deque(maxlen=win_l)  #クラス判別に使用するデータが格納されるキュー
+    self.start_time=time.time() #計測時間の記録に使用
+    #以下2つはなぜ入れたか覚えてないです
     self.sampleamount = 0
+    self.n = n
 
-  def get_emg_queue(self):
+  def get_emg_queue(self):  #呼び出し時に各センサの筋電位データを要素数8のリストで返す
     with self.lock:
-      return list(self.emg_data_queue)
+      return list(self.emg_data_queue)  #リスト化が必要
 
   def on_connected(self, event):
     event.device.stream_emg(True)
 
-  def start(self):
+  def start(self):  #筋電位のリアルタイム判別開始に呼び出す
       for i in range(ovr_l):
-        self.emg_data_queue.append((0, [0,0,0,0,0,0,0,0]))
+        self.emg_data_queue.append((0, [0,0,0,0,0,0,0,0]))  #一番最初のデータサンプルだけ解析窓に含まれるデータ半分が0になる
       self.idle=True
 
-  def predict(self):
-      #global scat_finger, ax1
-      tmp=self.get_emg_queue()
+  def predict(self):    #クラスの予測
+      tmp=self.get_emg_queue()  #その段階での解析窓を切り出し
       tmp=np.array([x[1] for x in tmp]).T
-      test_features=[feature_calc(tmp, win_l)]
+      test_features=[feature_calc(tmp, win_l)]  #特徴量を計算してリストを得る
       df = pd.DataFrame(test_features)
-      global finger_predict,wrist_predict,testdata_2d_rec
-      lda_fingerresult=int(lda_finger.predict(df.values))
-      finger_predict.append(lda_fingerresult)
-      a= lda_finger.transform(df.values)
+      global finger_predict,wrist_predict,testdata_2d_rec   #いらない変数があるかもしれない
+      lda_fingerresult=int(lda_finger.predict(df.values))   #特徴量のデータからクラス判別を実施
+      finger_predict.append(lda_fingerresult)   #判別結果のラベルを保存
+      a= lda_finger.transform(df.values)    #先ほどの特徴量を2次元座標に変換
       global finger_2d
-      finger_2d.append(a[0])
-      testdata_2d_rec.append([lda_fingerresult, a[0][0], a[0][1]])
+      finger_2d.append(a[0])    #座標データの保存
+      testdata_2d_rec.append([lda_fingerresult, a[0][0], a[0][1]])  #記録データ用に判別クラス、座標を保存
 
 
   def end(self):
@@ -117,7 +107,7 @@ class EmgCollector(myo.DeviceListener):
                 thread.join(0.0001)
 
 
-def Record():
+def Record():   #Unityとの同期確認
     print("wait msg")
     ADDR = ''
     PORT = 50004 # 受信ポート
@@ -140,13 +130,14 @@ def Record():
             VR_test_start=0
             print("msg received record finished")
             df = pd.DataFrame(testdata_2d_rec)
-            df.to_csv(msg.decode()[1:]+".csv")  # データを保存
+            df.to_csv(msg.decode()[1:]+".csv")  # Unity側で設定した名前で記録したcsvデータを保存
 
 
-class Train(object):
+class Train(object):    #視覚フィードバックに関するクラス
     def __init__(self,listener):
         self.n = listener.n
         self.listener = listener
+        
     def Show_emg_fb(self):
         ADDR = '127.0.0.1'
         PORT_TO = 50007  # 送信ポート
@@ -207,19 +198,22 @@ class Train(object):
             ax1.set_ylim(0,8)
             plt.pause(0.00001)
 
-def feature_calc(emg,win_l):    #改変時は横のEMGRecordも同じにすること
+def feature_calc(emg,win_l):    #特徴量計算を行う関数
     FEATURES = []
     for i in range(8):
         tmp = emg[i]
         FEATURES.append(np.mean(np.abs(tmp)))  # MAV
+        
         FEATURES.append(np.var(tmp))  # VAR
         zero = 0
         for j in range(0, win_l - 1):
             if tmp[j] * tmp[j + 1] < 0:
                 zero += 1
+                
         FEATURES.append(zero)   #ZC
-        diff = np.diff(tmp, n=1)
-        FEATURES.append(np.sum(np.abs(diff)))  # WL
+        
+        diff = np.diff(tmp, n=1)    # WL
+        FEATURES.append(np.sum(np.abs(diff)))
         # freq = np.abs(np.fft.fft(tmp))  # 周波数領域
         # FEATURES.append(np.max(freq))  # PKF
         # FEATURES.append(np.mean(freq))  # MKF
@@ -268,5 +262,5 @@ def main():
         if fb =="n":
             Train(listener).Show_emg_nfb(df,features_finger,finger_motion)
 
-if __name__ == '__main__':
+if __name__ == '__main__':  #一応ここから開始
   main()
