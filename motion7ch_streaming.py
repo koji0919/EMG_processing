@@ -120,3 +120,73 @@ if __name__ == "__main__":
             plt.pause(0.01)
 
             # time.sleep(1)
+            
+            
+# import tkinter as tk
+
+# class App:
+#     def __init__(self, master, n):
+#         self.vars = [tk.IntVar() for _ in range(n)]
+#         for i, var in enumerate(self.vars):
+#             c = tk.Checkbutton(master, text=str(i), variable=var)
+#             c.pack()
+#         self.button = tk.Button(master, text="Get Selection", command=self.get_selection)
+#         self.button.pack()
+    
+#     def get_selection(self):
+#         selected = [i for i, var in enumerate(self.vars) if var.get()]
+#         print(selected)
+
+# root = tk.Tk()
+# app = App(root, n=10)
+# root.mainloop()
+            
+    
+# import tkinter as tk
+# import matplotlib
+# import matplotlib.backends.backend_tkagg
+# import matplotlib.pyplot as plt
+# import random
+# import time
+
+
+# class App:
+#     def __init__(self, master):
+#         self.master = master
+#         self.fig, self.ax = plt.subplots()
+#         self.canvas = matplotlib.backends.backend_tkagg.FigureCanvasTkAgg(self.fig, master=self.master)
+#         self.canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+#         self.x = [0]
+#         self.y = [0]
+#         self.line, = self.ax.plot(self.x, self.y)
+#         self.scale_x = tk.Scale(master, from_=0, to=100, orient="horizontal", command=self.set_xlim)
+#         self.scale_x.pack()
+#         self.scale_y = tk.Scale(master, from_=-100, to=100, orient="vertical", command=self.set_ylim)
+#         self.scale_y.pack()
+#         self.update()
+
+#     def set_xlim(self, value):
+#         value = float(value)
+#         self.ax.set_xlim(0, value)
+#         self.canvas.draw()
+
+#     def set_ylim(self, value):
+#         value = float(value)
+#         self.ax.set_ylim(-value, value)
+#         self.canvas.draw()
+
+#     def update(self):
+#         self.x.append(self.x[-1] + 1)
+#         self.y.append(self.y[-1] + random.randint(-10, 10))
+#         self.line.set_data(self.x, self.y)
+#         self.ax.relim()
+#         self.ax.autoscale_view()
+#         self.canvas.draw()
+#         self.master.after(100, self.update)
+
+
+# root = tk.Tk()
+# app = App(root)
+# root.mainloop()
+            
+            
